@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Life Tracker</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icon.svg">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#F2F2F7">
+
+    <style>
+        :root {
+            --bg-color: #F2F2F7;
+            --card-bg: #FFFFFF;
+            --text-primary: #000000;
+            --text-secondary: #8E8E93;
+            --accent: #007AFF;
+            --separator: #E5E5EA;
+            --danger: #FF3B30;
+            
+            /* Mood Colors */
+            --mood-low: #FF3B30;
+            --mood-mid: #FFCC00;
+            --mood-high: #34C759;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 0;
+            padding-bottom: 40px; /* Space for bottom safe area */
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        h1, h2, h3 { margin: 0; }
+
+        /* --- Components --- */
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            padding-top: calc(env(safe-area-inset-top) + 20px);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .header h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.5px; }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+            margin-bottom: 20px;
+        }
+
+        /* --- Blob & Input --- */
+        .blob-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 0;
+        }
+
+        .blob-wrapper {
+            width: 150px;
+            height: 150px;
+            margin-bottom: 25px;
+            position: relative;
+        }
+
+        .blob {
+            width: 100%;
+            height: 100%;
+            background: var(--mood-mid);
+            border-radius: 50%;
+            transition: all 0.5s ease;
+            animation: wobble 6s ease-in-out infinite;
+            box-shadow: inset -10px -10px 20px rgba(0,0,0,0.1);
+        }
+
+        /* Face CSS */
+        .face {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 60%;
+            height: 40%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+        .eyes { display: flex; gap: 30px; }
+        .eye { width: 12px; height: 12px; background: #333; border-radius: 50%; }
+        .mouth {
+            width: 40px;
+            height: 20px;
+            border-bottom: 4px solid #333;
+            border-radius: 0 0 20px 20px; /* Smile */
+            transition: all 0.3s ease;
+        }
+
+        @keyframes wobble {
+            0%, 100% { border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%; }
+            50% { border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%; }
+        }
+
+        .slider-container { width: 100%; }
+        
+        .score-display {
+            font-size: 36px;
+            font-weight: 800;
+            text-align: center;
+            margin-bottom: 10px;
+            font-feature-settings: "tnum";
+            font-variant-numeric: tabular-nums;
+        }
+
+        input[type=range] {
+            width: 100%;
+            -webkit-appearance: none;
+            background: transparent;
+            margin: 15px 0;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 28px;
+            width: 28px;
+            border-radius: 50%;
+            background: #FFFFFF;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            cursor: pointer;
+            margin-top: -12px;
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #E5E5EA;
+            border-radius: 2px;
+        }
+
+        button.btn-primary {
+            width: 100%;
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 16px;
+            font-size: 17px;
+            font-weight: 600;
+            border-radius: 14px;
+            margin-top: 15px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        button.btn-primary:active { opacity: 0.7; }
+
+        /* --- Timeline --- */
+        .timeline-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .timeline-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--separator);
+        }
+        
+        .timeline-item:last-child { border-bottom: none; }
+
+        .timeline-score {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+
+        .timeline-info { flex-grow: 1; }
+        .timeline-time { font-size: 13px; color: var(--text-secondary); }
+        .timeline-text { font-size: 16px; font-weight: 500; }
+
+        /* --- Chart --- */
+        .chart-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            height: 150px;
+            padding-top: 20px;
+        }
+
+        .bar-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 12%;
+        }
+
+        .bar {
+            width: 100%;
+            border-radius: 6px;
+            background-color: var(--separator);
+            transition: height 0.5s ease, background-color 0.5s ease;
+            min-height: 4px;
+        }
+
+        .bar-label {
+            margin-top: 8px;
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        /* --- Calendar --- */
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 6px;
+            margin-top: 15px;
+        }
+
+        .calendar-day-header {
+            text-align: center;
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            padding-bottom: 5px;
+        }
+
+        .calendar-day {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            border-radius: 8px;
+            background: #f2f2f7;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .calendar-day.active { color: white; }
+
+        /* --- Settings --- */
+        .settings-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* iOS Toggle Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 51px;
+            height: 31px;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #E5E5EA;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 27px;
+            width: 27px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        input:checked + .slider { background-color: var(--accent); }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
+    "recharts": "https://esm.sh/recharts@^3.5.1"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>Life Tracker</h1>
+    </div>
+
+    <!-- Mood Input Card -->
+    <div class="card">
+        <div class="blob-container">
+            <div class="blob-wrapper">
+                <div class="blob" id="moodBlob"></div>
+                <div class="face">
+                    <div class="eyes">
+                        <div class="eye"></div>
+                        <div class="eye"></div>
+                    </div>
+                    <div class="mouth" id="blobMouth"></div>
+                </div>
+            </div>
+            <div class="score-display" id="scoreValue">50%</div>
+            <div class="slider-container">
+                <input type="range" min="1" max="100" value="50" id="moodSlider">
+            </div>
+        </div>
+        <button class="btn-primary" id="logBtn">Log Mood</button>
+    </div>
+
+    <!-- Timeline Card -->
+    <div class="card">
+        <h2>Today</h2>
+        <ul class="timeline-list" id="timelineList">
+            <!-- Items injected here -->
+        </ul>
+    </div>
+
+    <!-- Stats Card -->
+    <div class="card">
+        <h2>Weekly Average</h2>
+        <div class="chart-container" id="weeklyChart">
+            <!-- Bars injected here -->
+        </div>
+    </div>
+
+    <!-- Calendar Card -->
+    <div class="card">
+        <div class="header" style="margin-bottom:10px; margin-top:0;">
+            <h2 id="calendarMonthLabel">Month</h2>
+        </div>
+        <div class="calendar-grid" id="calendarGrid">
+            <!-- Days injected here -->
+        </div>
+    </div>
+
+    <!-- Settings Card -->
+    <div class="card">
+        <div class="settings-row">
+            <div>
+                <div style="font-weight:600; font-size: 17px;">Hourly Check-in</div>
+                <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">Get reminded to log your mood</div>
+            </div>
+            <label class="switch">
+                <input type="checkbox" id="notifyToggle">
+                <span class="slider"></span>
+            </label>
+        </div>
+    </div>
+</div>
+
+<script>
+    /* --- Service Worker Registration --- */
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => console.log('SW registered'))
+                .catch(err => console.log('SW failed', err));
+        });
+    }
+
+    /* --- App State & Logic --- */
+    const STORAGE_KEY = 'life_tracker_db_v1';
+    let appData = JSON.parse(localStorage.getItem(STORAGE_KEY)) || { entries: [], settings: { notify: false } };
+
+    // DOM Elements
+    const slider = document.getElementById('moodSlider');
+    const scoreDisplay = document.getElementById('scoreValue');
+    const blob = document.getElementById('moodBlob');
+    const mouth = document.getElementById('blobMouth');
+    const logBtn = document.getElementById('logBtn');
+    const timelineList = document.getElementById('timelineList');
+    const weeklyChart = document.getElementById('weeklyChart');
+    const notifyToggle = document.getElementById('notifyToggle');
+    const calendarGrid = document.getElementById('calendarGrid');
+    const calendarMonthLabel = document.getElementById('calendarMonthLabel');
+
+    // Helper: Color Interpolation
+    function getMoodColor(score) {
+        if (score <= 35) return '#FF3B30'; // Red
+        if (score <= 70) return '#FFCC00'; // Yellow
+        return '#34C759'; // Green
+    }
+
+    function updateBlob(val) {
+        const color = getMoodColor(val);
+        blob.style.backgroundColor = color;
+        scoreDisplay.style.color = color;
+        scoreDisplay.innerText = val + '%';
+
+        // Face Logic
+        if (val < 40) {
+            mouth.style.borderRadius = '20px 20px 0 0'; // Frown
+            mouth.style.borderBottom = 'none';
+            mouth.style.borderTop = '4px solid #333';
+        } else if (val < 65) {
+             mouth.style.borderRadius = '0'; // Straight
+             mouth.style.borderBottom = '4px solid #333';
+             mouth.style.borderTop = 'none';
+             mouth.style.height = '0px';
+        } else {
+            mouth.style.borderRadius = '0 0 20px 20px'; // Smile
+            mouth.style.borderBottom = '4px solid #333';
+            mouth.style.borderTop = 'none';
+            mouth.style.height = '20px';
+        }
+    }
+
+    function save() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+    }
+
+    function addEntry() {
+        const entry = {
+            id: Date.now(),
+            score: parseInt(slider.value),
+            timestamp: new Date().toISOString()
+        };
+        appData.entries.push(entry);
+        save();
+        renderAll();
+        
+        // Haptic feedback if available
+        if (navigator.vibrate) navigator.vibrate(50);
+        
+        // Reset
+        slider.value = 50;
+        updateBlob(50);
+    }
+
+    function renderTimeline() {
+        timelineList.innerHTML = '';
+        const todayStr = new Date().toDateString();
+        
+        // Filter today's entries, reverse order
+        const todayEntries = appData.entries
+            .filter(e => new Date(e.timestamp).toDateString() === todayStr)
+            .sort((a, b) => b.id - a.id);
+
+        if (todayEntries.length === 0) {
+            timelineList.innerHTML = '<li style="text-align:center; color:#ccc; padding:20px;">No entries today</li>';
+            return;
+        }
+
+        todayEntries.forEach(e => {
+            const date = new Date(e.timestamp);
+            const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            const li = document.createElement('li');
+            li.className = 'timeline-item';
+            li.innerHTML = `
+                <div class="timeline-score" style="background-color: ${getMoodColor(e.score)}">${e.score}</div>
+                <div class="timeline-info">
+                    <div class="timeline-text">Log Entry</div>
+                    <div class="timeline-time">${time}</div>
+                </div>
+            `;
+            timelineList.appendChild(li);
+        });
+    }
+
+    function renderChart() {
+        weeklyChart.innerHTML = '';
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const today = new Date();
+        
+        // Last 7 days
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(today);
+            d.setDate(today.getDate() - i);
+            const dayName = days[d.getDay()];
+            const dateStr = d.toDateString();
+
+            // Calculate average for this day
+            const dayEntries = appData.entries.filter(e => new Date(e.timestamp).toDateString() === dateStr);
+            let avg = 0;
+            if (dayEntries.length > 0) {
+                const sum = dayEntries.reduce((acc, curr) => acc + curr.score, 0);
+                avg = Math.round(sum / dayEntries.length);
+            }
+
+            const barGroup = document.createElement('div');
+            barGroup.className = 'bar-group';
+            
+            const color = avg > 0 ? getMoodColor(avg) : '#E5E5EA';
+            
+            barGroup.innerHTML = `
+                <div class="bar" style="height: ${avg}%; background-color: ${color}"></div>
+                <div class="bar-label">${dayName}</div>
+            `;
+            weeklyChart.appendChild(barGroup);
+        }
+    }
+
+    function renderCalendar() {
+        const now = new Date();
+        calendarMonthLabel.textContent = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        calendarGrid.innerHTML = '';
+
+        // Add Day Headers
+        const dayHeaders = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+        dayHeaders.forEach(h => {
+            const div = document.createElement('div');
+            div.className = 'calendar-day-header';
+            div.textContent = h;
+            calendarGrid.appendChild(div);
+        });
+
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const firstDayIndex = new Date(year, month, 1).getDay();
+
+        // Empty slots
+        for(let i=0; i<firstDayIndex; i++) {
+            calendarGrid.appendChild(document.createElement('div'));
+        }
+
+        // Days
+        for(let i=1; i<=daysInMonth; i++) {
+            const dateStr = new Date(year, month, i).toDateString();
+            const dayEntries = appData.entries.filter(e => new Date(e.timestamp).toDateString() === dateStr);
+            
+            let avg = 0;
+            let hasData = false;
+            if (dayEntries.length > 0) {
+                hasData = true;
+                avg = Math.round(dayEntries.reduce((a,b) => a+b.score, 0) / dayEntries.length);
+            }
+
+            const dayDiv = document.createElement('div');
+            dayDiv.className = hasData ? 'calendar-day active' : 'calendar-day';
+            dayDiv.textContent = i;
+            if(hasData) {
+                dayDiv.style.backgroundColor = getMoodColor(avg);
+            }
+            calendarGrid.appendChild(dayDiv);
+        }
+    }
+
+    function renderAll() {
+        renderTimeline();
+        renderChart();
+        renderCalendar();
+    }
+
+    /* --- Events --- */
+    slider.addEventListener('input', (e) => updateBlob(e.target.value));
+    
+    logBtn.addEventListener('click', addEntry);
+
+    // Notification Logic
+    notifyToggle.checked = appData.settings.notify;
+    
+    notifyToggle.addEventListener('change', async (e) => {
+        const isChecked = e.target.checked;
+        appData.settings.notify = isChecked;
+        save();
+
+        if (isChecked) {
+            if ('Notification' in window) {
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    new Notification("Check-ins Enabled", { 
+                        body: "We'll remind you to track your mood.",
+                        icon: 'icon.svg'
+                    });
+                    // Note: Real periodic background notifications on pure web require Push API server.
+                    // This simulates it for the active session or locally if the browser allows persistent workers.
+                    setupLocalNotificationLoop();
+                } else {
+                    alert("Notifications permission denied. Please enable them in settings.");
+                    notifyToggle.checked = false;
+                }
+            } else {
+                alert("This browser does not support notifications.");
+                notifyToggle.checked = false;
+            }
+        }
+    });
+
+    function setupLocalNotificationLoop() {
+        // Simple interval for demonstration (works when app is open/backgrounded in some mobile browsers)
+        setInterval(() => {
+            if (appData.settings.notify && Notification.permission === 'granted') {
+                new Notification("Time to check in!", { body: "How are you feeling?" });
+            }
+        }, 60 * 60 * 1000); // 1 hour
+    }
+
+    // Init
+    updateBlob(50);
+    renderAll();
+
+</script>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
